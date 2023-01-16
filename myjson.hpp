@@ -214,7 +214,7 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
         char letter;
         do {
             letter = in.get();
-        } while (letter == ' ' || letter == '\t' || letter == '\n' || letter == ',');
+        } while (letter == ' ' || letter == '\t' || letter == '\n' || letter == '\r');
         return letter;
     };
 
@@ -258,6 +258,9 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
         auto retval = std::make_shared<JsonObject>();
         do {
             letter = read_whitespace();
+            if (letter == ',') {
+                letter = read_whitespace();
+            }
             if (letter == '"') {
                 const std::string& name = read_string();
                 letter = read_whitespace();
@@ -271,11 +274,14 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
         auto retval = std::make_shared<JsonArray>();
         do {
             letter = read_whitespace();
-            if (letter == '{') {
-                in.unget();
-                retval->get_vector().push_back(parse_json(in));
-            } else break;
+            if (letter == ',') {
+                letter = read_whitespace(); 
+            }
+            in.unget();
+            retval->get_vector().push_back(parse_json(in));
+            letter = in.peek();
         } while (letter != ']');
+        in.get();
         return retval;
     } else {
         throw(std::runtime_error("JSON parser found unexpected character " + letter));
