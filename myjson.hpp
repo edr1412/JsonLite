@@ -9,6 +9,8 @@
 #include <exception>
 #include <sstream>
 
+namespace js01 {
+
 enum class JsonType : uint8_t {
     NIL,
     STRING,
@@ -33,12 +35,13 @@ struct JsonNode {
     inline virtual bool& get_bool() {
         throw(std::runtime_error("not a bool"));
     }
-    inline virtual std::vector<std::shared_ptr<JsonNode>>& get_vector() {
+    inline virtual std::vector<std::shared_ptr<JsonNode>>& get_array() {
         throw(std::runtime_error("not an array"));
     }
     inline virtual std::unordered_map<std::string, std::shared_ptr<JsonNode>>& get_object() {
         throw(std::runtime_error("not an object"));
     }
+    //  A method implemented in each class that writes its value into a string given as argument with an indentation given as another argument.
     inline virtual void write(std::ostream& out, int = 0) {
         out << "null";
     }
@@ -83,7 +86,9 @@ protected:
 // array is represented by std::vector<std::shared_ptr<JSON>>
 
 struct JsonString : public JsonNode {
+private:
     std::string contents_;
+public:
     JsonString(const std::string& from = "") : contents_(from) {}
 
     inline virtual JsonType get_type() {
@@ -97,7 +102,9 @@ struct JsonString : public JsonNode {
     }
 };
 struct JsonDouble : public JsonNode {
+private:
     double value_;
+public:
     JsonDouble(double from = 0) : value_(from) {}
 
     inline virtual JsonType get_type() {
@@ -111,7 +118,9 @@ struct JsonDouble : public JsonNode {
     }
 };
 struct JsonBool : public JsonNode {
+private:
     bool value_;
+public:
     JsonBool(bool from = false) : value_(from) {}
 
     inline virtual JsonType get_type() {
@@ -125,7 +134,9 @@ struct JsonBool : public JsonNode {
     }
 };
 struct JsonObject : public JsonNode {
+private:
     std::unordered_map<std::string, std::shared_ptr<JsonNode>> contents_;
+public:
     JsonObject() {}
 
     inline virtual JsonType get_type() {
@@ -162,13 +173,15 @@ struct JsonObject : public JsonNode {
     }
 };
 struct JsonArray : public JsonNode {
+private:
     std::vector<std::shared_ptr<JsonNode>> contents_;
+public:
     JsonArray() {}
 
     inline virtual JsonType get_type() {
         return JsonType::ARRAY;
     }
-    inline virtual std::vector<std::shared_ptr<JsonNode>>& get_vector() {
+    inline virtual std::vector<std::shared_ptr<JsonNode>>& get_array() {
         return contents_;
     }
     inline void write(std::ostream& out, int depth = 0) {
@@ -227,19 +240,19 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
         if (in.get() == 'r' && in.get() == 'u' && in.get() == 'e')
             return std::make_shared<JsonBool>(true);
         else
-            throw(std::runtime_error("JSON parser found misspelled bool 'true'"));
+            throw(std::runtime_error("Misspelled bool 'true'"));
     }
     else if (letter == 'f') {
         if (in.get() == 'a' && in.get() == 'l' && in.get() == 's' && in.get() == 'e')
             return std::make_shared<JsonBool>(false);
         else
-            throw(std::runtime_error("JSON parser found misspelled bool 'false'"));
+            throw(std::runtime_error("Misspelled bool 'false'"));
     }
     else if (letter == 'n') {
         if (in.get() == 'u' && in.get() == 'l' && in.get() == 'l')
             return std::make_shared<JsonNode>();
         else
-            throw(std::runtime_error("JSON parser found misspelled bool 'null'"));
+            throw(std::runtime_error("Misspelled bool 'null'"));
     }
     else if (letter == '-' || (letter >= '0' && letter <= '9')) {
         std::string asString;
@@ -264,7 +277,7 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
             if (letter == '"') {
                 const std::string& name = read_string();
                 letter = read_whitespace();
-                if (letter != ':') throw(std::runtime_error("JSON parser expected an additional ':' somewhere"));
+                if (letter != ':') throw(std::runtime_error("Missed an ':' somewhere"));
                 retval->get_object()[name] = parse_json(in);
             } else break;
         } while (letter != '}');
@@ -278,22 +291,17 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
                 letter = read_whitespace(); 
             }
             in.unget();
-            retval->get_vector().push_back(parse_json(in));
+            retval->get_array().push_back(parse_json(in));
             letter = in.peek();
         } while (letter != ']');
         in.get();
         return retval;
-    } else {
-        throw(std::runtime_error("JSON parser found unexpected character " + letter));
+    } 
+    else {
+        throw(std::runtime_error(std::string("Unexpected character ") + letter));
     }
     return std::make_shared<JsonNode>();
 }
-// read from file and parse
-static std::shared_ptr<JsonNode> parse_json(const std::string& filename) {
-    std::ifstream in(filename);
-    if (!in.good()) return std::make_shared<JsonNode>();
-    return parse_json(in);
+
 }
-
-
 #endif //MY_JSON
