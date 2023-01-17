@@ -8,6 +8,7 @@
 #include <memory>
 #include <exception>
 #include <sstream>
+#include <iomanip>
 
 namespace js01 {
 
@@ -57,23 +58,17 @@ protected:
     static void write_string(std::ostream& out, const std::string& written) {
         out.put('"');
         for (unsigned int i = 0; i < written.size(); i++) {
-            if (written[i] == '"') {
-                out.put('\\');
-                out.put('"');
-            } else if (written[i] == '\n') {
-                out.put('\\');
-                out.put('n');
-            } else if (written[i] == '\\') {
-                out.put('\\');
-                out.put('\\');
-            } else
-                out.put(written[i]);
+            out.put(written[i]);
         }
         out.put('"');
     }
     static void indent(std::ostream& out, int depth) {
-        for (int i = 0; i < depth; i++)
-            out.put('\t');
+        for (int i = 0; i < depth; i++){
+            out.put(' ');
+            out.put(' ');
+            out.put(' ');
+            out.put(' ');
+        }
     }
 };
 
@@ -114,7 +109,7 @@ public:
         return value_;
     }
     inline void write(std::ostream& out, int = 0) {
-        out << value_;
+        out << std::setprecision(15) << value_;
     }
 };
 struct JsonBool : public JsonNode {
@@ -146,12 +141,12 @@ public:
         return contents_;
     }
     inline void write(std::ostream& out, int depth = 0) {
+        out.put('{');
         if (contents_.empty()) {
-            out.put('{');
             out.put('}');
             return;
         }
-        out.put('{');
+
         out.put('\n');
         bool first_ele = true;
         for (auto& it : contents_) {
@@ -190,10 +185,16 @@ public:
             out.put(']');
             return;
         }
+        bool first_ele = true;
         for (auto& it : contents_) {
+            if(first_ele){
+                first_ele = false;
+            }
+            else{
+                out.put(',');
+            }
             out.put('\n');
-            indent(out, depth);
-            indent(out, depth);
+            indent(out, depth+1);
             it->write(out, depth + 1);
         }
         out.put('\n');
@@ -209,15 +210,16 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
     auto read_string = [&in] () -> std::string {
         char letter = in.get();
         std::string collected;
-        while (letter != '"') //the end of string
+        bool backslash = false;
+        while (letter != '"' || backslash) //the end of string
         {
             if (letter == '\\') {
-                if (in.get() == '"') collected.push_back('"');
-                else if (in.get() == 'n') collected.push_back('\n');
-                else if (in.get() == '\\') collected.push_back('\\');
-            } else {
-                collected.push_back(letter);
+                backslash=!backslash;
+            } 
+            else{
+                backslash=false;
             }
+            collected.push_back(letter);
             letter = in.get();
         }
         return collected;
@@ -260,7 +262,7 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
         do {
             letter = in.get();
             asString.push_back(letter);
-        } while (letter == '-' || letter == 'E' || letter == 'e' || letter == ',' || letter == '.' || (letter >= '0' && letter <= '9'));
+        } while (letter == '-' || letter == 'E' || letter == 'e' || letter == '.' || (letter >= '0' && letter <= '9'));
         in.unget();
         std::stringstream parsing(asString);
         double number;
@@ -269,8 +271,8 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
     }
     else if (letter == '{') {
         auto retval = std::make_shared<JsonObject>();
-        do {
-            letter = read_whitespace();
+        letter = read_whitespace();
+        while (letter != '}') {
             if (letter == ',') {
                 letter = read_whitespace();
             }
@@ -279,28 +281,34 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
                 letter = read_whitespace();
                 if (letter != ':') throw(std::runtime_error("Missed an ':' somewhere"));
                 retval->get_object()[name] = parse_json(in);
-            } else break;
-        } while (letter != '}');
+                letter = read_whitespace();
+            } 
+        }
         return retval;
     }
     else if (letter == '[') {
         auto retval = std::make_shared<JsonArray>();
-        do {
-            letter = read_whitespace();
+        letter = read_whitespace();
+        while (letter != ']'){
             if (letter == ',') {
                 letter = read_whitespace(); 
             }
             in.unget();
             retval->get_array().push_back(parse_json(in));
-            letter = in.peek();
-        } while (letter != ']');
-        in.get();
+            letter = read_whitespace();
+        }
         return retval;
     } 
     else {
         throw(std::runtime_error(std::string("Unexpected character ") + letter));
     }
     return std::make_shared<JsonNode>();
+}
+// read from file and parse
+static std::shared_ptr<JsonNode> parse_json(const std::string& filename) {
+    std::ifstream in(filename);
+    if (!in.good()) return std::make_shared<JsonNode>();
+    return parse_json(in);
 }
 
 }
