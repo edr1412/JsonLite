@@ -10,6 +10,8 @@
 #include <sstream>
 #include <iomanip>
 
+#define double long double
+
 namespace js01 {
 
 enum class JsonType : uint8_t {
@@ -39,6 +41,9 @@ struct JsonNode {
     inline virtual std::vector<std::shared_ptr<JsonNode>>& get_array() {
         throw(std::runtime_error("not an array"));
     }
+    inline virtual std::vector<std::string>& get_insert_order() {
+        throw(std::runtime_error("not an object"));
+    }
     inline virtual std::unordered_map<std::string, std::shared_ptr<JsonNode>>& get_object() {
         throw(std::runtime_error("not an object"));
     }
@@ -64,8 +69,6 @@ protected:
     }
     static void indent(std::ostream& out, int depth) {
         for (int i = 0; i < depth; i++){
-            out.put(' ');
-            out.put(' ');
             out.put(' ');
             out.put(' ');
         }
@@ -109,7 +112,7 @@ public:
         return value_;
     }
     inline void write(std::ostream& out, int = 0) {
-        out << std::setprecision(15) << value_;
+        out << std::fixed << value_;
     }
 };
 struct JsonBool : public JsonNode {
@@ -131,6 +134,7 @@ public:
 struct JsonObject : public JsonNode {
 private:
     std::unordered_map<std::string, std::shared_ptr<JsonNode>> contents_;
+    std::vector<std::string> insert_order_;
 public:
     JsonObject() {}
 
@@ -139,6 +143,9 @@ public:
     }
     inline virtual std::unordered_map<std::string, std::shared_ptr<JsonNode>>& get_object() {
         return contents_;
+    }
+    inline virtual std::vector<std::string>& get_insert_order() {
+        return insert_order_;
     }
     inline void write(std::ostream& out, int depth = 0) {
         out.put('{');
@@ -149,7 +156,7 @@ public:
 
         out.put('\n');
         bool first_ele = true;
-        for (auto& it : contents_) {
+        for (auto& it : insert_order_) {
             if (first_ele)
                 first_ele = false;
             else {
@@ -157,10 +164,10 @@ public:
                 out.put('\n');
             }
             indent(out, depth + 1);
-            write_string(out, it.first);
+            write_string(out, it);
             out.put(':');
             out.put(' ');
-            it.second->write(out, depth + 1);
+            contents_[it]->write(out, depth + 1);
         }
         out.put('\n');
         indent(out, depth);
@@ -280,6 +287,7 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
                 const std::string& name = read_string();
                 letter = read_whitespace();
                 if (letter != ':') throw(std::runtime_error("Missed an ':' somewhere"));
+                retval->get_insert_order().push_back(name);
                 retval->get_object()[name] = parse_json(in);
                 letter = read_whitespace();
             } 
