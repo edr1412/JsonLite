@@ -48,10 +48,10 @@ struct JsonNode {
         throw(std::runtime_error("not an object"));
     }
     //  A method implemented in each class that writes its value into a string given as argument with an indentation given as another argument.
-    inline virtual void write(std::ostream& out, int = 0) {
+    inline virtual void write(std::ostream& out, int = 0) const {
         out << "null";
     }
-    inline void write_to_file(const std::string& filename) {
+    inline void write_to_file(const std::string& filename) const {
         std::ofstream out(filename);
         if (!out.good()) 
             throw(std::runtime_error("Could not write to file " + filename));
@@ -60,14 +60,14 @@ struct JsonNode {
 
     virtual ~JsonNode() = default;
 protected:
-    static void write_string(std::ostream& out, const std::string& written) {
+    inline void write_string(std::ostream& out, const std::string& written) const {
         out.put('"');
         for (unsigned int i = 0; i < written.size(); i++) {
             out.put(written[i]);
         }
         out.put('"');
     }
-    static void indent(std::ostream& out, int depth) {
+    inline void indent(std::ostream& out, int depth) const {
         for (int i = 0; i < depth; i++){
             out.put(' ');
             out.put(' ');
@@ -80,8 +80,8 @@ protected:
 // string is represented by std::string
 // number is represented by double
 // boolean is represented by bool
-// object is represented by std::unordered_map<std::string, std::shared_ptr<JSON>>
-// array is represented by std::vector<std::shared_ptr<JSON>>
+// object is represented by std::unordered_map<std::string, std::shared_ptr<JsonNode>>
+// array is represented by std::vector<std::shared_ptr<JsonNode>>
 
 struct JsonString : public JsonNode {
 private:
@@ -95,7 +95,7 @@ public:
     inline virtual std::string& get_string() {
         return contents_;
     }
-    inline void write(std::ostream& out, int = 0) {
+    inline virtual void write(std::ostream& out, int = 0) const {
         write_string(out, contents_);
     }
 };
@@ -111,7 +111,7 @@ public:
     inline virtual double& get_double() {
         return value_;
     }
-    inline void write(std::ostream& out, int = 0) {
+    inline virtual void write(std::ostream& out, int = 0) const {
         out << std::fixed << value_;
     }
 };
@@ -127,14 +127,14 @@ public:
     inline virtual bool& get_bool() {
         return value_;
     }
-    inline void write(std::ostream& out, int = 0) {
+    inline virtual void write(std::ostream& out, int = 0) const {
         out << (value_ ? "true" : "false");
     }
 };
 struct JsonObject : public JsonNode {
 private:
     std::unordered_map<std::string, std::shared_ptr<JsonNode>> contents_;
-    std::vector<std::string> insert_order_;
+    std::vector<std::string> insert_order_; // record insert order
 public:
     JsonObject() {}
 
@@ -147,7 +147,7 @@ public:
     inline virtual std::vector<std::string>& get_insert_order() {
         return insert_order_;
     }
-    inline void write(std::ostream& out, int depth = 0) {
+    inline virtual void write(std::ostream& out, int depth = 0) const {
         out.put('{');
         if (contents_.empty()) {
             out.put('}');
@@ -167,7 +167,7 @@ public:
             write_string(out, it);
             out.put(':');
             out.put(' ');
-            contents_[it]->write(out, depth + 1);
+            contents_.at(it)->write(out, depth + 1);
         }
         out.put('\n');
         indent(out, depth);
@@ -186,7 +186,7 @@ public:
     inline virtual std::vector<std::shared_ptr<JsonNode>>& get_array() {
         return contents_;
     }
-    inline void write(std::ostream& out, int depth = 0) {
+    inline virtual void write(std::ostream& out, int depth = 0) const {
         out.put('[');
         if (contents_.empty()) {
             out.put(']');
@@ -212,7 +212,7 @@ public:
 };
 
 // A recursive function that parses the input character by character.
-static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
+std::shared_ptr<JsonNode> parse_json(std::istream& in) {
     // read until "
     auto read_string = [&in] () -> std::string {
         char letter = in.get();
@@ -313,7 +313,7 @@ static std::shared_ptr<JsonNode> parse_json(std::istream& in) {
     return std::make_shared<JsonNode>();
 }
 // read from file and parse
-static std::shared_ptr<JsonNode> parse_json(const std::string& filename) {
+std::shared_ptr<JsonNode> parse_json(const std::string& filename) {
     std::ifstream in(filename);
     if (!in.good()) return std::make_shared<JsonNode>();
     return parse_json(in);
